@@ -472,19 +472,18 @@ bool MVKImageMemoryBinding::needsHostReadSync(VkPipelineStageFlags srcStageMask,
                                               VkPipelineStageFlags dstStageMask,
                                               MVKPipelineBarrier& barrier) {
 #if MVK_MACOS
-    return ((barrier.newLayout == VK_IMAGE_LAYOUT_GENERAL) &&
+    return ( !isUnifiedMemoryGPU() && (barrier.newLayout == VK_IMAGE_LAYOUT_GENERAL) &&
             mvkIsAnyFlagEnabled(barrier.dstAccessMask, (VK_ACCESS_HOST_READ_BIT | VK_ACCESS_MEMORY_READ_BIT)) &&
             isMemoryHostAccessible() && (!_device->_pMetalFeatures->sharedLinearTextures || !isMemoryHostCoherent()));
-#endif
-#if MVK_IOS_OR_TVOS
-    return false;
+#else
+	return false;
 #endif
 }
 
 bool MVKImageMemoryBinding::shouldFlushHostMemory() { return isMemoryHostAccessible() && (!_mtlTexelBuffer || _ownsTexelBuffer); }
 
-// Flushes the device memory at the specified memory range into the MTLTexture. Updates
-// all subresources that overlap the specified range and are in an updatable layout state.
+// Flushes the memory at the specified memory range into the MTLTexture. 
+// Updates all subresources that overlap the specified range and are in an updatable layout state.
 VkResult MVKImageMemoryBinding::flushToDevice(VkDeviceSize offset, VkDeviceSize size) {
     if (shouldFlushHostMemory()) {
         for(uint8_t planeIndex = beginPlaneIndex(); planeIndex < endPlaneIndex(); planeIndex++) {
@@ -505,7 +504,7 @@ VkResult MVKImageMemoryBinding::flushToDevice(VkDeviceSize offset, VkDeviceSize 
     return VK_SUCCESS;
 }
 
-// Pulls content from the MTLTexture into the device memory at the specified memory range.
+// Pulls content from the MTLTexture into memory at the specified memory range.
 // Pulls from all subresources that overlap the specified range and are in an updatable layout state.
 VkResult MVKImageMemoryBinding::pullFromDevice(VkDeviceSize offset, VkDeviceSize size) {
     if (shouldFlushHostMemory()) {
@@ -643,7 +642,7 @@ VkResult MVKImage::getMemoryRequirements(VkMemoryRequirements* pMemoryRequiremen
                                           : getPhysicalDevice()->getAllMemoryTypes();
 #if MVK_MACOS
     // Metal on macOS does not provide native support for host-coherent memory, but Vulkan requires it for Linear images
-    if ( !_isLinear ) {
+    if ( !isAppleGPU() && !_isLinear ) {
         mvkDisableFlags(pMemoryRequirements->memoryTypeBits, getPhysicalDevice()->getHostCoherentMemoryTypes());
     }
 #endif
@@ -829,6 +828,7 @@ MTLStorageMode MVKImage::getMTLStorageMode() {
 
 #if MVK_MACOS
 	// For macOS prior to 10.15.5, textures cannot use Shared storage mode, so change to Managed storage mode.
+	// All Apple GPUs support shared linear textures, so this only applies to other GPUs.
     if (stgMode == MTLStorageModeShared && !_device->_pMetalFeatures->sharedLinearTextures) {
         stgMode = MTLStorageModeManaged;
     }

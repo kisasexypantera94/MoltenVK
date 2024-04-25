@@ -1584,7 +1584,7 @@ VkResult MVKPhysicalDevice::getQueueFamilyProperties(uint32_t* pCount,
 // wild temporary changes, particularly during initial queries before much GPU activity has occurred.
 // On Apple GPUs, CPU & GPU timestamps are the same, and timestamp period never changes.
 void MVKPhysicalDevice::updateTimestampsAndPeriod() {
-	if (_properties.vendorID == kAppleVendorId) { return; }
+	if (_isAppleGPU || ![_mtlDevice respondsToSelector: @selector(sampleTimestamps:gpuTimestamp:)]) { return; }
 
 	MTLTimestamp earlierCPUTs = _prevCPUTimestamp;
 	MTLTimestamp earlierGPUTs = _prevGPUTimestamp;
@@ -1621,7 +1621,7 @@ VkResult MVKPhysicalDevice::getMemoryProperties(VkPhysicalDeviceMemoryProperties
 				mvkClear(budgetProps->heapUsage, VK_MAX_MEMORY_HEAPS);
 				budgetProps->heapBudget[0] = (VkDeviceSize)getRecommendedMaxWorkingSetSize();
 				budgetProps->heapUsage[0] = (VkDeviceSize)getCurrentAllocatedSize();
-				if (!getHasUnifiedMemory()) {
+				if (!_hasUnifiedMemory) {
 					budgetProps->heapBudget[1] = (VkDeviceSize)mvkGetAvailableMemorySize();
 					budgetProps->heapUsage[1] = (VkDeviceSize)mvkGetUsedMemorySize();
 				}
@@ -1643,11 +1643,11 @@ MVKPhysicalDevice::MVKPhysicalDevice(MVKInstance* mvkInstance, id<MTLDevice> mtl
 	_supportedExtensions(this, true),
 	_pixelFormats(this) {				// Set after _mtlDevice
 
-	initMTLDevice();
-	initProperties();           		// Call first.
-	initMetalFeatures();        		// Call second.
-	initFeatures();             		// Call third.
-	initLimits();						// Call fourth.
+	initMTLDevice();           			// Call first.
+	initProperties();           		// Call second.
+	initMetalFeatures();        		// Call third.
+	initFeatures();             		// Call fourth.
+	initLimits();						// Call fifth.
 	initExtensions();
 	initMemoryProperties();
 	initExternalMemoryProperties();
@@ -1657,12 +1657,21 @@ MVKPhysicalDevice::MVKPhysicalDevice(MVKInstance* mvkInstance, id<MTLDevice> mtl
 }
 
 void MVKPhysicalDevice::initMTLDevice() {
-#if MVK_XCODE_14_3 && MVK_MACOS && !MVK_MACCAT
+#if MVK_MACOS
+	_isAppleGPU = supportsMTLGPUFamily(Apple1);
+
+	// Apple Silicon will respond false to isLowPower, but never hits it.
+	_hasUnifiedMemory = ([_mtlDevice respondsToSelector: @selector(hasUnifiedMemory)]
+						 ? _mtlDevice.hasUnifiedMemory : _mtlDevice.isLowPower);
+
+#if MVK_XCODE_14_3 && !MVK_MACCAT
 	if ([_mtlDevice respondsToSelector: @selector(setShouldMaximizeConcurrentCompilation:)]) {
 		[_mtlDevice setShouldMaximizeConcurrentCompilation: mvkConfig().shouldMaximizeConcurrentCompilation];
 		MVKLogInfoIf(mvkConfig().debugMode, "maximumConcurrentCompilationTaskCount %lu", _mtlDevice.maximumConcurrentCompilationTaskCount);
 	}
 #endif
+
+#endif  // MVK_MACOS
 }
 
 // Initializes the physical device properties (except limits).
@@ -2757,16 +2766,14 @@ static uint32_t mvkGetEntryProperty(io_registry_entry_t entry, CFStringRef prope
 }
 
 void MVKPhysicalDevice::initGPUInfoProperties() {
-
-	bool isIntegrated = getHasUnifiedMemory();
-	_properties.deviceType = isIntegrated ? VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU : VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+	_properties.deviceType = _hasUnifiedMemory ? VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU : VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 	strlcpy(_properties.deviceName, _mtlDevice.name.UTF8String, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
 
 	// For Apple Silicon, the Device ID is determined by the highest
 	// GPU capability, which is a combination of OS version and GPU type.
 	// We determine Apple Silicon directly from the GPU, instead
 	// of from the build, in case we are running Rosetta2.
-	if (supportsMTLGPUFamily(Apple1)) {
+	if (_isAppleGPU) {
 		_properties.vendorID = kAppleVendorId;
 		_properties.deviceID = getHighestGPUCapability();
 		return;
@@ -2801,9 +2808,9 @@ void MVKPhysicalDevice::initGPUInfoProperties() {
 			if (mvkGetEntryProperty(entry, CFSTR("class-code")) == 0x30000) {	// 0x30000 : DISPLAY_VGA
 
 				// The Intel GPU will always be marked as integrated.
-				// Return on a match of either Intel && low power, or non-Intel and non-low-power.
+				// Return on a match of either Intel && unified memory, or non-Intel and non-unified memory.
 				uint32_t vendorID = mvkGetEntryProperty(entry, CFSTR("vendor-id"));
-				if ( (vendorID == kIntelVendorId) == isIntegrated) {
+				if ( (vendorID == kIntelVendorId) == _hasUnifiedMemory) {
 					isFound = true;
 					_properties.vendorID = vendorID;
 					_properties.deviceID = mvkGetEntryProperty(entry, CFSTR("device-id"));
@@ -2986,7 +2993,7 @@ void MVKPhysicalDevice::initMemoryProperties() {
 	// Optional second heap for shared memory
 	uint32_t sharedHeapIdx;
 	VkMemoryPropertyFlags sharedTypePropFlags;
-	if (getHasUnifiedMemory()) {
+	if (_hasUnifiedMemory) {
 		// Shared memory goes in the single main heap in unified memory, and per Vulkan spec must be marked local
 		sharedHeapIdx = mainHeapIdx;
 		sharedTypePropFlags = MVK_VK_MEMORY_TYPE_METAL_SHARED | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -3012,12 +3019,14 @@ void MVKPhysicalDevice::initMemoryProperties() {
 	setMemoryType(typeIdx, sharedHeapIdx, sharedTypePropFlags);
 	typeIdx++;
 
-	// Managed storage
+	// Managed storage. On all Apple Silicon, use Shared instead.
 	uint32_t managedBit = 0;
 #if MVK_MACOS
-	managedBit = 1 << typeIdx;
-	setMemoryType(typeIdx, mainHeapIdx, MVK_VK_MEMORY_TYPE_METAL_MANAGED);
-	typeIdx++;
+	if ( !_isAppleGPU ) {
+		managedBit = 1 << typeIdx;
+		setMemoryType(typeIdx, mainHeapIdx, MVK_VK_MEMORY_TYPE_METAL_MANAGED);
+		typeIdx++;
+	}
 #endif
 
 	// Memoryless storage
@@ -3053,18 +3062,33 @@ void MVKPhysicalDevice::initMemoryProperties() {
 	_allMemoryTypes				= privateBit | sharedBit | managedBit | memlessBit;
 }
 
-bool MVKPhysicalDevice::getHasUnifiedMemory() {
-#if MVK_IOS_OR_TVOS
-	return true;
+MVK_PUBLIC_SYMBOL MTLStorageMode MVKPhysicalDevice::getMTLStorageModeFromVkMemoryPropertyFlags(VkMemoryPropertyFlags vkFlags) {
+
+	// If not visible to the host, use Private, or Memoryless if available and lazily allocated.
+	if ( !mvkAreAllFlagsEnabled(vkFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ) {
+#if MVK_APPLE_SILICON
+		if (mvkAreAllFlagsEnabled(vkFlags, VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)) {
+			return MTLStorageModeMemoryless;
+		}
 #endif
+		return MTLStorageModePrivate;
+	}
+
+	// If visible to the host and coherent: Shared
+	if (mvkAreAllFlagsEnabled(vkFlags, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+		return MTLStorageModeShared;
+	}
+
+	// If visible to the host, but not coherent: Shared on Apple Silicon, Managed on other GPUs.
 #if MVK_MACOS
-	return ([_mtlDevice respondsToSelector: @selector(hasUnifiedMemory)]
-			? _mtlDevice.hasUnifiedMemory : _mtlDevice.isLowPower);
+	return _isAppleGPU ? MTLStorageModeShared : MTLStorageModeManaged;
+#else
+	return MTLStorageModeShared;
 #endif
 }
 
 uint64_t MVKPhysicalDevice::getVRAMSize() {
-	if (getHasUnifiedMemory()) {
+	if (_hasUnifiedMemory) {
 		return mvkGetSystemMemorySize();
 	} else {
 		// There's actually no way to query the total physical VRAM on the device in Metal.
@@ -3226,7 +3250,7 @@ void MVKPhysicalDevice::initVkSemaphoreStyle() {
 	switch (mvkConfig().semaphoreSupportStyle) {
 		case MVK_CONFIG_VK_SEMAPHORE_SUPPORT_STYLE_METAL_EVENTS_WHERE_SAFE: {
 			bool isNVIDIA = _properties.vendorID == kNVVendorId;
-			bool isRosetta2 = _properties.vendorID == kAppleVendorId && !MVK_APPLE_SILICON;
+			bool isRosetta2 = _isAppleGPU && !MVK_APPLE_SILICON;
 			if (_metalFeatures.events && !(isRosetta2 || isNVIDIA)) { _vkSemaphoreStyle = MVKSemaphoreStyleUseMTLEvent; }
 			break;
 		}
