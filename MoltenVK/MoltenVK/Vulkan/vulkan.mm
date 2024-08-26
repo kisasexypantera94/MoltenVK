@@ -2783,7 +2783,8 @@ MVK_PUBLIC_VULKAN_SYMBOL VkResult vkGetMemoryMetalHandlePropertiesEXT(
 																	  VkMemoryMetalHandlePropertiesEXT*     pMemoryMetalHandleProperties) {
 
 	MVKTraceVulkanCallStart();
-	// TODO
+	MVKDevice* mvkDvc = MVKDevice::getMVKDevice(device);
+	pMemoryMetalHandleProperties->memoryTypeBits = mvkDvc->getPhysicalDevice()->getExternalResourceMemoryTypeBits(handle);
 	MVKTraceVulkanCallEnd();
 	return VK_SUCCESS;
 }
