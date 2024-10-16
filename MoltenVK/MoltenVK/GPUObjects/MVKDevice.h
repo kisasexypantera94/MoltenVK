@@ -337,7 +337,7 @@ public:
 	/** Returns the external memory properties supported for images for the handle type. */
 	VkExternalMemoryProperties& getExternalImageProperties(VkFormat format, VkExternalMemoryHandleTypeFlagBits handleType);
 
-	uint32_t getExternalResourceMemoryTypeBits(MTLResource_id handle) const;
+	uint32_t getExternalResourceMemoryTypeBits(VkExternalMemoryHandleTypeFlagBits handleType, void* handle) const;
 
 	
 #pragma mark Metal
@@ -429,6 +429,7 @@ protected:
 	VkExternalMemoryProperties _hostPointerExternalMemoryProperties;
 	VkExternalMemoryProperties _mtlBufferExternalMemoryProperties;
 	VkExternalMemoryProperties _mtlTextureExternalMemoryProperties;
+	VkExternalMemoryProperties _mtlTextureHeapExternalMemoryProperties;
 	id<MTLCounterSet> _timestampMTLCounterSet;
 	MVKSemaphoreStyle _vkSemaphoreStyle;
 	MTLTimestamp _prevCPUTimestamp = 0;
@@ -787,7 +788,7 @@ public:
 	/** Returns the Metal objects underpinning the Vulkan objects indicated in the pNext chain of pMetalObjectsInfo. */
 	void getMetalObjects(VkExportMetalObjectsInfoEXT* pMetalObjectsInfo);
 
-	MTLResource_id getResourceIdFromHandle(const VkMemoryGetMetalHandleInfoEXT* pGetMetalHandleInfo, MTLResource_id* pHandle) const;
+	void* getResourceIdFromHandle(const VkMemoryGetMetalHandleInfoEXT* pGetMetalHandleInfo) const;
 
 
 #pragma mark Construction
