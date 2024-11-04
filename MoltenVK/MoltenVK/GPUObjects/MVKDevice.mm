@@ -1121,6 +1121,8 @@ VkExternalMemoryProperties& MVKPhysicalDevice::getExternalImageProperties(VkForm
 			if (_pixelFormats.getChromaSubsamplingPlaneCount(format) > 1u)
 				return _mtlTextureHeapExternalMemoryProperties;
 			return _mtlTextureExternalMemoryProperties;
+		case VK_EXTERNAL_MEMORY_HANDLE_TYPE_MTLHEAP_BIT_EXT:
+			return _mtlTextureHeapExternalMemoryProperties;
 		default:
 			return _emptyExtMemProps;
 	}
