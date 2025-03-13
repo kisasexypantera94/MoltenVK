@@ -363,6 +363,7 @@ In addition to core *Vulkan* functionality, **MoltenVK**  also supports the foll
   16 samplers, except macOS 11.0 (Big Sur) or later, or on older versions of macOS using 
   an Intel GPU, and if Metal argument buffers enabled in config)*
 - `VK_EXT_external_memory_host`
+- `VK_EXT_external_memory_metal`
 - `VK_EXT_fragment_shader_interlock` *(requires Metal 2.0 and Raster Order Groups)*
 - `VK_EXT_host_query_reset`
 - `VK_EXT_image_robustness`
@@ -401,7 +402,6 @@ In addition to core *Vulkan* functionality, **MoltenVK**  also supports the foll
 - `VK_INTEL_shader_integer_functions2`
 - `VK_NV_fragment_shader_barycentric` *(requires Metal 2.2 on Mac or Metal 2.3 on iOS)*
 - `VK_NV_glsl_shader`
-- `VK_EXT_external_memory_metal`
 
 In order to visibly display your content on *macOS*, *iOS*, or *tvOS*, you must enable the
 `VK_EXT_metal_surface` extension, and use the function defined in that extension to create a 
