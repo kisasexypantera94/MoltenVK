@@ -427,6 +427,7 @@ protected:
 	MVKPixelFormats _pixelFormats;
 	VkExternalMemoryProperties _hostPointerExternalMemoryProperties;
 	VkExternalMemoryProperties _mtlBufferExternalMemoryProperties;
+	VkExternalMemoryProperties _mtlBufferHeapExternalMemoryProperties;
 	VkExternalMemoryProperties _mtlTextureExternalMemoryProperties;
 	VkExternalMemoryProperties _mtlTextureHeapExternalMemoryProperties;
 	id<MTLCounterSet> _timestampMTLCounterSet;
