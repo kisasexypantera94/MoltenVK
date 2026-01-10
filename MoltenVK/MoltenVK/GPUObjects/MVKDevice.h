@@ -357,6 +357,10 @@ public:
 	/** Returns the MTLStorageMode that matches the Vulkan memory property flags. */
 	MTLStorageMode getMTLStorageModeFromVkMemoryPropertyFlags(VkMemoryPropertyFlags vkFlags);
 
+	/** Returns if GPU is an Apple GPU */
+	bool isAppleGPU() const {
+		return _isAppleGPU;
+	}
 
 #pragma mark Construction
 
