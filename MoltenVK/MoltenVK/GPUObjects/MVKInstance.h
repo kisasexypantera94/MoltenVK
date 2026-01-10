@@ -57,6 +57,11 @@ class MVKInstance : public MVKDispatchableVulkanAPIObject {
 
 public:
 
+	enum class EngineID {
+		Unknown,
+		Angle,
+	};
+
 	/** Returns the Vulkan type of this object. */
 	VkObjectType getVkObjectType() override { return VK_OBJECT_TYPE_INSTANCE; }
 
@@ -173,6 +178,8 @@ public:
         return (MVKInstance*)getDispatchableObject(vkInstance);
     }
 
+	inline EngineID getEngine() const { return _engine; }
+
 protected:
 	friend MVKDevice;
 
@@ -188,6 +195,7 @@ protected:
 	VkResult verifyLayers(uint32_t count, const char* const* names);
 
 	VkApplicationInfo _appInfo;
+	EngineID _engine;
 	MVKSmallVector<MVKPhysicalDevice*, 2> _physicalDevices;
 	MVKSmallVector<MVKDebugReportCallback*> _debugReportCallbacks;
 	MVKSmallVector<MVKDebugUtilsMessenger*> _debugUtilMessengers;

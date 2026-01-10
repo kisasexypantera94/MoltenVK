@@ -339,6 +339,13 @@ MVKInstance::MVKInstance(const VkInstanceCreateInfo* pCreateInfo) : _enabledExte
         _appInfo.apiVersion = MVK_VULKAN_API_VERSION;
     }
     
+	_engine = EngineID::Unknown;
+	if (_appInfo.pEngineName) {
+		if (0 == strcmp(_appInfo.pEngineName, "ANGLE")) {
+			_engine = EngineID::Angle;
+		}
+	}
+
 	initProcAddrs();		// Init function pointers
 
 	logVersions();	// Log the MoltenVK and Vulkan versions
@@ -750,6 +757,12 @@ void MVKInstance::initProcAddrs() {
 	ADD_DVC_EXT_ENTRY_POINT(vkDestroyPrivateDataSlotEXT, EXT_PRIVATE_DATA);
 	ADD_DVC_EXT_ENTRY_POINT(vkGetPrivateDataEXT, EXT_PRIVATE_DATA);
 	ADD_DVC_EXT_ENTRY_POINT(vkSetPrivateDataEXT, EXT_PRIVATE_DATA);
+	ADD_DVC_EXT_ENTRY_POINT(vkCmdBeginQueryIndexedEXT, EXT_TRANSFORM_FEEDBACK);
+	ADD_DVC_EXT_ENTRY_POINT(vkCmdBeginTransformFeedbackEXT, EXT_TRANSFORM_FEEDBACK);
+	ADD_DVC_EXT_ENTRY_POINT(vkCmdBindTransformFeedbackBuffersEXT, EXT_TRANSFORM_FEEDBACK);
+	ADD_DVC_EXT_ENTRY_POINT(vkCmdDrawIndirectByteCountEXT, EXT_TRANSFORM_FEEDBACK);
+	ADD_DVC_EXT_ENTRY_POINT(vkCmdEndQueryIndexedEXT, EXT_TRANSFORM_FEEDBACK);
+	ADD_DVC_EXT_ENTRY_POINT(vkCmdEndTransformFeedbackEXT, EXT_TRANSFORM_FEEDBACK);
 	ADD_DVC_EXT_ENTRY_POINT(vkGetPhysicalDeviceMultisamplePropertiesEXT, EXT_SAMPLE_LOCATIONS);
 	ADD_DVC_EXT_ENTRY_POINT(vkCmdSetSampleLocationsEXT, EXT_SAMPLE_LOCATIONS);
 	ADD_DVC_EXT_ENTRY_POINT(vkReleaseSwapchainImagesEXT, EXT_SWAPCHAIN_MAINTENANCE_1);
