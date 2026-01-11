@@ -297,9 +297,9 @@ protected:
     bool _hasPooledDescriptors;
 	MVKSmallVector<MVKDescriptorSet> _descriptorSets;
 	MVKBitArray _descriptorSetAvailablility;
-	id<MTLBuffer> _metalArgumentBuffer;
-	NSUInteger _nextMetalArgumentBufferOffset;
 	MVKMTLBufferAllocator _mtlBufferAllocator;
+	id<MTLBuffer> _metalArgumentBuffer = nil;
+	NSUInteger _nextMetalArgumentBufferOffset = 0;
 
 	MVKDescriptorTypePool<MVKUniformBufferDescriptor> _uniformBufferDescriptors;
 	MVKDescriptorTypePool<MVKStorageBufferDescriptor> _storageBufferDescriptors;
@@ -313,6 +313,8 @@ protected:
 	MVKDescriptorTypePool<MVKCombinedImageSamplerDescriptor> _combinedImageSamplerDescriptors;
 	MVKDescriptorTypePool<MVKUniformTexelBufferDescriptor> _uniformTexelBufferDescriptors;
 	MVKDescriptorTypePool<MVKStorageTexelBufferDescriptor> _storageTexelBufferDescriptors;
+
+	size_t _maxAllocDescSetCount = 0;
 };
 
 

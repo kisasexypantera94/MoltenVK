@@ -598,6 +598,7 @@ void MVKCommandEncoder::beginMetalRenderPass(MVKCommandUse cmdUse) {
     _tessEvalPushConstants.beginMetalRenderPass();
     _fragmentPushConstants.beginMetalRenderPass();
     _occlusionQueryState.beginMetalRenderPass();
+	_transformFeedbackBinding.markDirty();
 }
 
 void MVKCommandEncoder::restartMetalRenderPassIfNeeded() {
@@ -707,6 +708,8 @@ void MVKCommandEncoder::finalizeDrawState(MVKGraphicsStage stage) {
         // Must happen before switching encoders.
         encodeStoreActions(true);
     }
+    if (_graphicsPipelineState.isDirty() || _graphicsResourcesState.isDirty())
+        _graphicsResourcesState.updateBindings();
     _graphicsPipelineState.encode(stage);    	// Must do first..it sets others
 	_depthStencilState.encode(stage);
     _graphicsResourcesState.encode(stage);   	// Before push constants, to allow them to override.
@@ -770,8 +773,10 @@ void MVKCommandEncoder::beginMetalComputeEncoding(MVKCommandUse cmdUse) {
 }
 
 void MVKCommandEncoder::finalizeDispatchState() {
-    _computePipelineState.encode();    		// Must do first..it sets others
-    _computeResourcesState.encode();   		// Before push constants, to allow them to override.
+    if (_computePipelineState.isDirty() || _computeResourcesState.isDirty())
+        _computeResourcesState.updateBindings();
+    _computePipelineState.encode();    // Must do first..it sets others
+    _computeResourcesState.encode();   // Before push constants, to allow them to override.
     _computePushConstants.encode();
 	_gpuAddressableBuffersState.encode();	// After resources and push constants
 }
@@ -879,6 +884,7 @@ MVKPushConstantsCommandEncoderState* MVKCommandEncoder::getPushConstants(VkShade
 		case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT:	return &_tessEvalPushConstants;
 		case VK_SHADER_STAGE_FRAGMENT_BIT:					return &_fragmentPushConstants;
 		case VK_SHADER_STAGE_COMPUTE_BIT:					return &_computePushConstants;
+		case VK_SHADER_STAGE_GEOMETRY_BIT:					return &_geometryPushConstants;
 		default:
 			MVKAssert(false, "Invalid shader stage: %u", shaderStage);
 			return nullptr;
@@ -1012,6 +1018,9 @@ void MVKCommandEncoder::encodeGPUCounterSample(MVKGPUCounterQueryPool* mvkQryPoo
 		}
 	} else if (mvkIsAnyFlagEnabled(samplingPoints, MVK_COUNTER_SAMPLING_AT_BLIT)) {
 		[getMTLBlitEncoder(kMVKCommandUseRecordGPUCounterSample) sampleCountersInBuffer: mvkQryPool->getMTLCounterBuffer() atSampleIndex: sampleIndex withBarrier: YES];
+	} else if (mvkIsAnyFlagEnabled(samplingPoints, MVK_COUNTER_SAMPLING_AT_DISPATCH)) {
+		// Workaround for broken 10.15 AMD driver which crashes if you try to record to an empty blit encoder
+		[getMTLComputeEncoder(kMVKCommandUseRecordGPUCounterSample) sampleCountersInBuffer: mvkQryPool->getMTLCounterBuffer() atSampleIndex: sampleIndex withBarrier: YES];
 	}
 }
 
@@ -1141,9 +1150,9 @@ void MVKCommandEncoder::finishQueries() {
 MVKCommandEncoder::MVKCommandEncoder(MVKCommandBuffer* cmdBuffer,
 									 MVKPrefillMetalCommandBuffersStyle prefillStyle) : MVKBaseDeviceObject(cmdBuffer->getDevice()),
 	_cmdBuffer(cmdBuffer),
-	_graphicsPipelineState(this),
+	_graphicsPipelineState(this, VK_PIPELINE_BIND_POINT_GRAPHICS),
 	_graphicsResourcesState(this),
-	_computePipelineState(this),
+	_computePipelineState(this, VK_PIPELINE_BIND_POINT_COMPUTE),
 	_computeResourcesState(this),
 	_gpuAddressableBuffersState(this),
 	_depthStencilState(this),
@@ -1154,6 +1163,7 @@ MVKCommandEncoder::MVKCommandEncoder(MVKCommandBuffer* cmdBuffer,
 	_tessEvalPushConstants(this, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT),
 	_fragmentPushConstants(this, VK_SHADER_STAGE_FRAGMENT_BIT),
 	_computePushConstants(this, VK_SHADER_STAGE_COMPUTE_BIT),
+    _geometryPushConstants(this, VK_SHADER_STAGE_GEOMETRY_BIT),
 	_prefillStyle(prefillStyle){
 
 	_pActivatedQueries = nullptr;

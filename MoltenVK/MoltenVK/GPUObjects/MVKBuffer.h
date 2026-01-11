@@ -125,6 +125,12 @@ public:
     /** Returns a Metal texture that overlays this buffer view. */
     id<MTLTexture> getMTLTexture();
 
+	/** Returns the offset that must be added to this texture in the shader */
+	uint32_t getTextureOffset() const { return _textureOffset; }
+
+	/** Returns the offset that must be added to this texture's offset to get the start of the buffer */
+	uint32_t getTextureByteOffset() const { return _textureOffset * _bytesPerPixel; }
+
 
 #pragma mark Construction
 
@@ -143,6 +149,8 @@ protected:
 	id<MTLTexture> _mtlTexture;
 	MTLPixelFormat _mtlPixelFormat;
 	NSUInteger _mtlBytesPerRow;
+	uint32_t _bytesPerPixel;
+	uint32_t _textureOffset = 0;
     VkExtent2D _textureSize;
 	std::mutex _lock;
 };

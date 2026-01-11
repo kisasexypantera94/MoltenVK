@@ -504,6 +504,12 @@ void MVKPhysicalDevice::getFeatures(VkPhysicalDeviceFeatures2* features) {
 				shaderIntFuncsFeatures->shaderIntegerFunctions2 = true;
 				break;
 			}
+			case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_FEATURES_EXT: {
+				auto* transformFeedbackFeatures = (VkPhysicalDeviceTransformFeedbackFeaturesEXT*)next;
+				transformFeedbackFeatures->transformFeedback = true;
+				transformFeedbackFeatures->geometryStreams = false;
+				break;
+			}
 			default:
 				break;
 		}
@@ -847,6 +853,13 @@ void MVKPhysicalDevice::getProperties(VkPhysicalDeviceProperties2* properties) {
 			case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_PROPERTIES_EXT: {
 				auto* divisorProps = (VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT*)next;
 				divisorProps->maxVertexAttribDivisor = kMVKUndefinedLargeUInt32;
+				break;
+			}
+			case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_PROPERTIES_EXT: {
+				// Incomplete!
+				auto* xfbProps = (VkPhysicalDeviceTransformFeedbackPropertiesEXT*)next;
+				xfbProps->maxTransformFeedbackBuffers = 1;
+				xfbProps->maxTransformFeedbackStreams = 1;
 				break;
 			}
 			default:
@@ -1915,6 +1928,9 @@ void MVKPhysicalDevice::initMetalFeatures() {
 	switch (_properties.vendorID) {
 		case kAMDVendorId:
 			_metalFeatures.clearColorFloatRounding = MVK_FLOAT_ROUNDING_DOWN;
+			// Test case: kernel void test(constant uint4 &a, device uint* b) { b[0] = (~a.y & a.x) | !a.z; }
+			// Tested on macOS 10.13, 13, and 14, on AMD Polaris and RDNA GPUs.
+			_metalFeatures.bitwiseNotCausesICE = true;
 			break;
 		case kAppleVendorId:
 			// TODO: Other GPUs?
@@ -2450,8 +2466,12 @@ void MVKPhysicalDevice::initMetalFeatures() {
 #if MVK_MACOS
 	// On macOS, if we couldn't query supported sample points (on macOS 11),
 	// but the platform can support immediate-mode sample points, indicate that here.
-	if (!_metalFeatures.counterSamplingPoints && mvkOSVersionIsAtLeast(10.15) && !supportsMTLGPUFamily(Apple1)) {  \
-		_metalFeatures.counterSamplingPoints = MVK_COUNTER_SAMPLING_AT_DRAW | MVK_COUNTER_SAMPLING_AT_DISPATCH | MVK_COUNTER_SAMPLING_AT_BLIT;  \
+	if (!_metalFeatures.counterSamplingPoints && mvkOSVersionIsAtLeast(10.15) && !supportsMTLGPUFamily(Apple1)) {
+		_metalFeatures.counterSamplingPoints = MVK_COUNTER_SAMPLING_AT_DRAW | MVK_COUNTER_SAMPLING_AT_DISPATCH | MVK_COUNTER_SAMPLING_AT_BLIT;
+	}
+	// The macOS 10.15 AMD Metal driver crashes if you attempt to sample on an empty blit encoder
+	if ((_metalFeatures.counterSamplingPoints & MVK_COUNTER_SAMPLING_AT_BLIT) && _properties.vendorID == kAMDVendorId && !mvkOSVersionIsAtLeast(11)) {
+		_metalFeatures.counterSamplingPoints &= ~MVK_COUNTER_SAMPLING_AT_BLIT;
 	}
 #endif
 
@@ -2464,6 +2484,7 @@ void MVKPhysicalDevice::initFeatures() {
     _features.robustBufferAccess = true;  // XXX Required by Vulkan spec
     _features.fullDrawIndexUint32 = true;
     _features.independentBlend = true;
+    _features.geometryShader = true;  // XXX Required by DXVK for D3D10
     _features.sampleRateShading = true;
 	_features.logicOp = getMVKConfig().useMetalPrivateAPI;
     _features.depthBiasClamp = true;
@@ -2472,6 +2493,7 @@ void MVKPhysicalDevice::initFeatures() {
 	_features.wideLines = getMVKConfig().useMetalPrivateAPI;
     _features.alphaToOne = true;
     _features.samplerAnisotropy = true;
+    _features.pipelineStatisticsQuery = true; // XXX Required by Damavand
     _features.shaderImageGatherExtended = true;
     _features.shaderStorageImageExtendedFormats = true;
     _features.shaderStorageImageReadWithoutFormat = true;
@@ -2479,9 +2501,11 @@ void MVKPhysicalDevice::initFeatures() {
     _features.shaderUniformBufferArrayDynamicIndexing = true;
     _features.shaderStorageBufferArrayDynamicIndexing = true;
     _features.shaderClipDistance = true;
+    _features.shaderCullDistance = true;  // XXX Required by DXVK for 10level9
     _features.shaderInt16 = true;
     _features.multiDrawIndirect = true;
     _features.inheritedQueries = true;
+    _features.geometryShader = true;
 
 	_features.shaderSampledImageArrayDynamicIndexing = _metalFeatures.arrayOfTextures;
 	_features.textureCompressionBC = mvkSupportsBCTextureCompression(_mtlDevice);
@@ -2772,6 +2796,16 @@ void MVKPhysicalDevice::initLimits() {
             }
             return true;
         });
+        const MVKConfiguration& config = getMVKConfig();
+        if (config.emulateSingleTexelAlignment && _metalFeatures.textureBuffers && (!singleTexelStorage || !singleTexelUniform)) {
+            if (config.useMetalArgumentBuffers) {
+                MVKLogWarn("Texture buffer single texel alignment emulation is currently incompatible with argument buffers, disabling.");
+            } else {
+                _metalFeatures.emulatedTexelBufferAlignment = true;
+                singleTexelStorage = true;
+                singleTexelUniform = true;
+            }
+        }
         _texelBuffAlignProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TEXEL_BUFFER_ALIGNMENT_PROPERTIES_EXT;
         _texelBuffAlignProperties.storageTexelBufferOffsetAlignmentBytes = maxStorage;
         _texelBuffAlignProperties.storageTexelBufferOffsetSingleTexelAlignment = singleTexelStorage;
@@ -4693,8 +4727,8 @@ uint32_t MVKDevice::expandVisibilityResultMTLBuffer(uint32_t queryCount) {
 
     NSUInteger mtlBuffLen = mvkAlignByteCount(newBuffLen, _physicalDevice->_metalFeatures.mtlBufferAlignment);
     MTLResourceOptions mtlBuffOpts = MTLResourceStorageModeShared | MTLResourceCPUCacheModeDefaultCache;
-    [_globalVisibilityResultMTLBuffer release];
-    _globalVisibilityResultMTLBuffer = [_physicalDevice->_mtlDevice newBufferWithLength: mtlBuffLen options: mtlBuffOpts];     // retained
+    if (!_globalVisibilityResultMTLBuffer)
+        _globalVisibilityResultMTLBuffer = [_physicalDevice->_mtlDevice newBufferWithLength: maxBuffLen options: mtlBuffOpts];     // retained
 
     return _globalVisibilityQueryCount - queryCount;     // Might be lower than requested if an overflow occurred
 }

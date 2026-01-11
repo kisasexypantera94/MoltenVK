@@ -132,6 +132,7 @@ void mvkPopulateShaderConversionConfig(mvk::SPIRVToMSLConversionConfiguration& s
 		spv::ExecutionModelVertex,
 		spv::ExecutionModelTessellationControl,
 		spv::ExecutionModelTessellationEvaluation,
+		spv::ExecutionModelGeometry,
 		spv::ExecutionModelFragment,
 		spv::ExecutionModelGLCompute
 	};
@@ -335,10 +336,11 @@ void MVKDescriptorSetLayoutBinding::push(MVKCommandEncoder* cmdEncoder,
                 auto* bufferView = get<MVKBufferView*>(pData, stride, rezIdx - dstArrayElement);
                 tb.mtlTexture = bufferView->getMTLTexture();
                 tb.swizzle = 0;
+                tb.offset = bufferView->getTextureOffset();
                 if (_info.descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER) {
                     id<MTLTexture> mtlTex = tb.mtlTexture;
                     bb.mtlBuffer = mtlTex.buffer;
-                    bb.offset = mtlTex.bufferOffset;
+                    bb.offset = mtlTex.bufferOffset + bufferView->getTextureByteOffset();
                     bb.size = (uint32_t)(mtlTex.height * mtlTex.bufferBytesPerRow);
                 }
                 for (uint32_t i = kMVKShaderStageVertex; i < kMVKShaderStageCount; i++) {
@@ -573,8 +575,15 @@ MTLRenderStages MVKDescriptorSetLayoutBinding::getMTLRenderStages() {
 				case kMVKShaderStageTessCtl:
 				case kMVKShaderStageTessEval:
 					mtlStages |= MTLRenderStageVertex;
+#if MVK_XCODE_14
+                    mtlStages |= MTLRenderStageObject;
+#endif
 					break;
-
+#if MVK_XCODE_14
+                case kMVKShaderStageGeometry:
+                    mtlStages |= MTLRenderStageMesh;
+                    break;
+#endif
 				case kMVKShaderStageFragment:
 					mtlStages |= MTLRenderStageFragment;
 					break;
@@ -1255,10 +1264,11 @@ void MVKTexelBufferDescriptor::bind(MVKCommandEncoder* cmdEncoder,
 	VkDescriptorType descType = getDescriptorType();
 	if (_mvkBufferView) {
 		tb.mtlTexture = _mvkBufferView->getMTLTexture();
+		tb.offset = _mvkBufferView->getTextureOffset();
 		if (descType == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER) {
 			id<MTLTexture> mtlTex = tb.mtlTexture;
 			bb.mtlBuffer = mtlTex.buffer;
-			bb.offset = mtlTex.bufferOffset;
+			bb.offset = mtlTex.bufferOffset + _mvkBufferView->getTextureByteOffset();
 			bb.size = (uint32_t)(mtlTex.height * mtlTex.bufferBytesPerRow);
 		}
 	}

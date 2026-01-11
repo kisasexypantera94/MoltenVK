@@ -100,11 +100,6 @@ void MVKDescriptorSetLayout::bindDescriptorSet(MVKCommandEncoder* cmdEncoder,
 	if (cmdEncoder) { cmdEncoder->bindDescriptorSet(pipelineBindPoint, descSetIndex,
 													descSet, dslMTLRezIdxOffsets,
 													dynamicOffsets, dynamicOffsetIndex); }
-	if ( !isUsingMetalArgumentBuffers() ) {
-		for (auto& dslBind : _bindings) {
-			dslBind.bind(cmdEncoder, pipelineBindPoint, descSet, dslMTLRezIdxOffsets, dynamicOffsets, dynamicOffsetIndex);
-		}
-	}
 }
 
 static const void* getWriteParameters(VkDescriptorType type, const VkDescriptorImageInfo* pImageInfo,
@@ -274,25 +269,30 @@ void MVKDescriptorSetLayout::populateShaderConversionConfig(mvk::SPIRVToMSLConve
 	}
 }
 
+static const spv::ExecutionModel getExecModel(MVKShaderStage stage) {
+	switch (stage) {
+		case kMVKShaderStageVertex:   return spv::ExecutionModelVertex;
+		case kMVKShaderStageTessCtl:  return spv::ExecutionModelTessellationControl;
+		case kMVKShaderStageTessEval: return spv::ExecutionModelTessellationEvaluation;
+		case kMVKShaderStageGeometry: return spv::ExecutionModelGeometry;
+		case kMVKShaderStageFragment: return spv::ExecutionModelFragment;
+		case kMVKShaderStageCompute:  return spv::ExecutionModelGLCompute;
+		case kMVKShaderStageCount:    assert(0); __builtin_unreachable();
+	}
+}
+
 bool MVKDescriptorSetLayout::populateBindingUse(MVKBitArray& bindingUse,
 												SPIRVToMSLConversionConfiguration& context,
 												MVKShaderStage stage,
 												uint32_t descSetIndex) {
-	static const spv::ExecutionModel spvExecModels[] = {
-		spv::ExecutionModelVertex,
-		spv::ExecutionModelTessellationControl,
-		spv::ExecutionModelTessellationEvaluation,
-		spv::ExecutionModelFragment,
-		spv::ExecutionModelGLCompute
-	};
 
 	bool descSetIsUsed = false;
 	uint32_t bindCnt = (uint32_t)_bindings.size();
 	bindingUse.resize(bindCnt);
 	for (uint32_t bindIdx = 0; bindIdx < bindCnt; bindIdx++) {
 		auto& dslBind = _bindings[bindIdx];
-		if (context.isResourceUsed(spvExecModels[stage], descSetIndex, dslBind.getBinding())) {
-			bindingUse.setBit(bindIdx);
+		if (context.isResourceUsed(getExecModel(stage), descSetIndex, dslBind.getBinding())) {
+			bindingUse.enableBit(bindIdx);
 			descSetIsUsed = true;
 		}
 	}
@@ -564,8 +564,9 @@ VkResult MVKDescriptorTypePool<DescriptorClass>::allocateDescriptor(MVKDescripto
 																	MVKDescriptorPool* pool) {
 	DescriptorClass* mvkDesc;
 	if (pool->_hasPooledDescriptors) {
-		size_t availDescIdx = _availability.getIndexOfFirstSetBit(true);
+		size_t availDescIdx = _availability.getIndexOfFirstEnabledBit();
 		if (availDescIdx >= _availability.size()) { return VK_ERROR_OUT_OF_POOL_MEMORY; }
+		_availability.disableBit(availDescIdx);
 		mvkDesc = &_descriptors[availDescIdx];
 		mvkDesc->reset();		// Clear before reusing.
 	} else {
@@ -584,7 +585,7 @@ void MVKDescriptorTypePool<DescriptorClass>::freeDescriptor(MVKDescriptor* mvkDe
 															MVKDescriptorPool* pool) {
 	if (pool->_hasPooledDescriptors) {
 		size_t descIdx = (DescriptorClass*)mvkDesc - _descriptors.data();
-		_availability.setBit(descIdx);
+		_availability.enableBit(descIdx);
 	} else {
 		mvkDesc->destroy();
 	}
@@ -593,7 +594,7 @@ void MVKDescriptorTypePool<DescriptorClass>::freeDescriptor(MVKDescriptor* mvkDe
 // Preallocated descriptors will be reset when they are reused
 template<typename DescriptorClass>
 void MVKDescriptorTypePool<DescriptorClass>::reset() {
-	_availability.setAllBits();
+	_availability.enableAllBits();
 }
 
 template<typename DescriptorClass>
@@ -651,7 +652,7 @@ VkResult MVKDescriptorPool::allocateDescriptorSet(MVKDescriptorSetLayout* mvkDSL
 	uint64_t mtlArgBuffEncAlignedSize = mvkAlignByteCount(mtlArgBuffEncSize, getMetalFeatures().mtlBufferAlignment);
 
 	size_t dsCnt = _descriptorSetAvailablility.size();
-	_descriptorSetAvailablility.enumerateEnabledBits(true, [&](size_t dsIdx) {
+	_descriptorSetAvailablility.enumerateEnabledBits([&](size_t dsIdx) {
 		bool isSpaceAvail = true;		// If not using Metal arg buffers, space will always be available.
 		MVKDescriptorSet* mvkDS = &_descriptorSets[dsIdx];
 		NSUInteger mtlArgBuffOffset = mvkDS->getMetalArgumentBuffer().getMetalArgumentBufferOffset();
@@ -683,11 +684,12 @@ VkResult MVKDescriptorPool::allocateDescriptorSet(MVKDescriptorSetLayout* mvkDSL
 			if (rslt) {
 				freeDescriptorSet(mvkDS, false);
 			} else {
+				_descriptorSetAvailablility.disableBit(dsIdx);
+				_maxAllocDescSetCount = std::max(_maxAllocDescSetCount, dsIdx + 1);
 				*pVKDS = (VkDescriptorSet)mvkDS;
 			}
 			return false;
 		} else {
-			_descriptorSetAvailablility.setBit(dsIdx);	// We didn't consume this one after all, so it's still available
 			return true;
 		}
 	});
@@ -711,7 +713,7 @@ void MVKDescriptorPool::freeDescriptorSet(MVKDescriptorSet* mvkDS, bool isPoolRe
 		mvkDS->free(isPoolReset);
 		if ( !isPoolReset ) {
 			size_t dsIdx = mvkDS - _descriptorSets.data();
-			_descriptorSetAvailablility.setBit(dsIdx);
+			_descriptorSetAvailablility.enableBit(dsIdx);
 		}
 	} else {
 		reportError(VK_ERROR_INITIALIZATION_FAILED, "A descriptor set is being returned to a descriptor pool that did not allocate it.");
@@ -721,11 +723,10 @@ void MVKDescriptorPool::freeDescriptorSet(MVKDescriptorSet* mvkDS, bool isPoolRe
 // Free allocated descriptor sets and reset descriptor pools.
 // Don't waste time freeing desc sets that were never allocated.
 VkResult MVKDescriptorPool::reset(VkDescriptorPoolResetFlags flags) {
-	size_t dsCnt = _descriptorSetAvailablility.getLowestNeverClearedBitIndex();
-	for (uint32_t dsIdx = 0; dsIdx < dsCnt; dsIdx++) {
+	for (uint32_t dsIdx = 0; dsIdx < _maxAllocDescSetCount; dsIdx++) {
 		freeDescriptorSet(&_descriptorSets[dsIdx], true);
 	}
-	_descriptorSetAvailablility.setAllBits();
+	_descriptorSetAvailablility.enableAllBits();
 
 	_uniformBufferDescriptors.reset();
 	_storageBufferDescriptors.reset();
@@ -741,6 +742,7 @@ VkResult MVKDescriptorPool::reset(VkDescriptorPoolResetFlags flags) {
 	_storageTexelBufferDescriptors.reset();
 
 	_nextMetalArgumentBufferOffset = 0;
+	_maxAllocDescSetCount = 0;
 
 	return VK_SUCCESS;
 }
@@ -909,9 +911,6 @@ MVKDescriptorPool::MVKDescriptorPool(MVKDevice* device, const VkDescriptorPoolCr
 	}
 
 void MVKDescriptorPool::initMetalArgumentBuffer(const VkDescriptorPoolCreateInfo* pCreateInfo) {
-	_metalArgumentBuffer = nil;
-	_nextMetalArgumentBufferOffset = 0;
-
 	if ( !isUsingMetalArgumentBuffers() ) { return; }
 
 	auto& mtlFeats = getMetalFeatures();

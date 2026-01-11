@@ -284,6 +284,11 @@ void MVKBufferView::propagateDebugName() {
 
 #pragma mark Metal
 
+static VkDeviceSize getTextureBufferOffsetMask(const VkPhysicalDeviceTexelBufferAlignmentPropertiesEXT& props) {
+	VkDeviceSize maxAlign = std::max(props.storageTexelBufferOffsetAlignmentBytes, props.uniformTexelBufferOffsetAlignmentBytes);
+	return maxAlign - 1;
+}
+
 id<MTLTexture> MVKBufferView::getMTLTexture() {
 	auto& mtlFeats = getMetalFeatures();
     if ( !_mtlTexture && _mtlPixelFormat && mtlFeats.texelBuffers) {
@@ -301,18 +306,22 @@ id<MTLTexture> MVKBufferView::getMTLTexture() {
 #endif
         }
         id<MTLBuffer> mtlBuff;
-        VkDeviceSize mtlBuffOffset;
+        VkDeviceSize mtlBuffBaseOffset = 0;
         if ( !mtlFeats.sharedLinearTextures && _buffer->isMemoryHostCoherent() ) {
             mtlBuff = _buffer->getMTLBufferCache();
-            mtlBuffOffset = _offset;
         } else {
             mtlBuff = _buffer->getMTLBuffer();
-            mtlBuffOffset = _buffer->getMTLBufferOffset() + _offset;
+            mtlBuffBaseOffset = _buffer->getMTLBufferOffset();
+        }
+        VkDeviceSize mtlBuffOffset = mtlBuffBaseOffset + _offset;
+        if (mtlFeats.emulatedTexelBufferAlignment) {
+            VkDeviceSize mask = getTextureBufferOffsetMask(getTexelBufferAlignmentProperties());
+            MVKAssert((mtlBuffBaseOffset & mask) == 0, "Metal buffer base offset wasn't aligned!");
         }
         MTLTextureDescriptor* mtlTexDesc;
         if ( mtlFeats.textureBuffers ) {
             mtlTexDesc = [MTLTextureDescriptor textureBufferDescriptorWithPixelFormat: _mtlPixelFormat
-                                                                                width: _textureSize.width
+                                                                                width: _textureSize.width + _textureOffset
                                                                       resourceOptions: (mtlBuff.cpuCacheMode << MTLResourceCPUCacheModeShift) | (mtlBuff.storageMode << MTLResourceStorageModeShift)
                                                                                 usage: usage];
         } else {
@@ -326,30 +335,43 @@ id<MTLTexture> MVKBufferView::getMTLTexture() {
         }
 		_mtlTexture = [mtlBuff newTextureWithDescriptor: mtlTexDesc
 												 offset: mtlBuffOffset
-											bytesPerRow: _mtlBytesPerRow];
+											bytesPerRow: _mtlBytesPerRow + _textureOffset * _bytesPerPixel];
 		propagateDebugName();
     }
     return _mtlTexture;
 }
 
-
 #pragma mark Construction
 
 MVKBufferView::MVKBufferView(MVKDevice* device, const VkBufferViewCreateInfo* pCreateInfo) : MVKVulkanAPIDeviceObject(device) {
 	MVKPixelFormats* pixFmts = getPixelFormats();
-    _buffer = (MVKBuffer*)pCreateInfo->buffer;
-    _offset = pCreateInfo->offset;
-    _mtlPixelFormat = pixFmts->getMTLPixelFormat(pCreateInfo->format);
-    VkExtent2D fmtBlockSize = pixFmts->getBlockTexelSize(pCreateInfo->format);  // Pixel size of format
-    size_t bytesPerBlock = pixFmts->getBytesPerBlock(pCreateInfo->format);
+	_buffer = (MVKBuffer*)pCreateInfo->buffer;
+	_offset = pCreateInfo->offset;
+	_mtlPixelFormat = pixFmts->getMTLPixelFormat(pCreateInfo->format);
+	VkExtent2D fmtBlockSize = pixFmts->getBlockTexelSize(pCreateInfo->format);  // Pixel size of format
+	size_t bytesPerBlock = pixFmts->getBytesPerBlock(pCreateInfo->format);
+	_bytesPerPixel = static_cast<uint32_t>(bytesPerBlock);
 	_mtlTexture = nil;
+	auto& mtlFeats = getMetalFeatures();
+
+	if (mtlFeats.emulatedTexelBufferAlignment) {
+		VkDeviceSize mask = getTextureBufferOffsetMask(getTexelBufferAlignmentProperties());
+		size_t offset = _offset & mask;
+		// Bytes per pixel can be a non power of two (e.g. 12 for RGB32), which means just masking may cut off part of a pixel
+		// In that case, try to increase the size of the offset until we land on a pixel boundary
+		while (offset % _bytesPerPixel && offset < _bytesPerPixel * mask)
+			offset += (mask + 1);
+		if (offset > _offset)
+			offset = _offset;
+		_textureOffset = static_cast<uint32_t>(offset / _bytesPerPixel);
+		_offset -= offset;
+	}
 
     // Layout texture as a 1D array of texel blocks (which are texels for non-compressed textures) that covers the bytes
     VkDeviceSize byteCount = pCreateInfo->range;
     if (byteCount == VK_WHOLE_SIZE) { byteCount = _buffer->getByteCount() - pCreateInfo->offset; }    // Remaining bytes in buffer
     size_t blockCount = byteCount / bytesPerBlock;
 
-	auto& mtlFeats = getMetalFeatures();
 	if ( !mtlFeats.textureBuffers ) {
 		// But Metal requires the texture to be a 2D texture. Determine the number of 2D rows we need and their width.
 		// Multiple rows will automatically align with PoT max texture dimension, but need to align upwards if less than full single row.

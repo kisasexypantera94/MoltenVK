@@ -315,6 +315,7 @@
 				A9F4D9582B8E7345004AD576 /* Products */,
 			);
 			sourceTree = "<group>";
+			usesTabs = 1;
 		};
 		A92DB3E11CE0F34500FBC835 /* Docs */ = {
 			isa = PBXGroup;

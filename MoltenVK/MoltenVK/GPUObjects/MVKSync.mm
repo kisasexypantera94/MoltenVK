@@ -18,6 +18,7 @@
 
 #include "MVKSync.h"
 #include "MVKFoundation.h"
+#include "MVKInstance.h"
 
 using namespace std;
 
@@ -591,6 +592,12 @@ void MVKMetalCompiler::compile(unique_lock<mutex>& lock, dispatch_block_t block)
 }
 
 void MVKMetalCompiler::handleError() {
+	MVKInstance* instance = _owner->getInstance();
+	if (instance && instance->getEngine() == MVKInstance::EngineID::Angle) {
+		MVKLogWarn("%s compile failed but Angle is special so we'll pretend everything is happy: %s",
+		           _compilerType.c_str(), _compileError.localizedDescription.UTF8String);
+		return;
+	}
 	_owner->setConfigurationResult(reportError(VK_ERROR_INITIALIZATION_FAILED,
 											   "%s compile failed (Error code %li):\n%s.",
 											   _compilerType.c_str(), (long)_compileError.code,

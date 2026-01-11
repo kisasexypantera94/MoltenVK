@@ -357,6 +357,13 @@ void mvkSetConfig(MVKConfiguration& dstMVKConfig, const MVKConfiguration& srcMVK
 #	define MVK_CONFIG_USE_METAL_PRIVATE_API MVK_USE_METAL_PRIVATE_API
 #endif
 
+/**
+ * Enable emulation of pixel alignment in texture buffers.  Currently only supported with argument buffers off.
+ */
+#ifndef MVK_CONFIG_EMULATE_SINGLE_TEXEL_ALIGNMENT
+#	define MVK_CONFIG_EMULATE_SINGLE_TEXEL_ALIGNMENT    1
+#endif
+
 /** If set, MVK will dump spirv input, translated msl, and pipelines into the given directory. */
 #ifndef MVK_CONFIG_SHADER_DUMP_DIR
 #   define MVK_CONFIG_SHADER_DUMP_DIR ""

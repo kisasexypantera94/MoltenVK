@@ -79,6 +79,9 @@ public:
 	 */
 	virtual void beginMetalComputeEncoding() { if (_isModified) { markDirty(); } }
 
+	/** Check whether this state is dirty */
+	bool isDirty() const { return _isDirty; }
+
     /**
      * If the content of this instance is dirty, marks this instance as no longer dirty
      * and calls the encodeImpl() function to encode the content onto the Metal encoder.
@@ -130,12 +133,15 @@ public:
 
     MVKPipeline* getPipeline();
 
-    MVKPipelineCommandEncoderState(MVKCommandEncoder* cmdEncoder) : MVKCommandEncoderState(cmdEncoder) {}
+    /** Constructs this instance for the specified command encoder. */
+    MVKPipelineCommandEncoderState(MVKCommandEncoder* cmdEncoder, VkPipelineBindPoint bindPoint)
+        : MVKCommandEncoderState(cmdEncoder), _bindPoint(bindPoint) {}
 
 protected:
     void encodeImpl(uint32_t stage) override;
 
     MVKPipeline* _pipeline = nullptr;
+    VkPipelineBindPoint _bindPoint;
 };
 
 
@@ -371,11 +377,12 @@ public:
 									 id<MTLResource> mtlResource,
 									 MTLResourceUsage mtlUsage,
 									 MTLRenderStages mtlStages) = 0;
+	void updateBindings();
 
 	void markDirty() override;
 
-    MVKResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder) :
-		MVKCommandEncoderState(cmdEncoder), _boundDescriptorSets{} {}
+    MVKResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder, VkPipelineBindPoint bindPoint) :
+		MVKCommandEncoderState(cmdEncoder), _bindPoint(bindPoint), _boundDescriptorSets{} {}
 
 protected:
 
@@ -477,11 +484,13 @@ protected:
 		MVKSmallVector<MVKMTLSamplerStateBinding, N> samplerStateBindings;
 		MVKSmallVector<uint32_t, N> swizzleConstants;
 		MVKSmallVector<uint32_t, N> bufferSizes;
+		MVKSmallVector<uint32_t, N> textureOffsets;
 
-		MVKMTLBufferBinding swizzleBufferBinding;
-		MVKMTLBufferBinding bufferSizeBufferBinding;
-		MVKMTLBufferBinding dynamicOffsetBufferBinding;
-		MVKMTLBufferBinding viewRangeBufferBinding;
+		MVKMTLBufferBinding swizzleBufferBinding = { .isInline = true };
+		MVKMTLBufferBinding bufferSizeBufferBinding = { .isInline = true };
+		MVKMTLBufferBinding dynamicOffsetBufferBinding = { .isInline = true };
+		MVKMTLBufferBinding textureOffsetBufferBinding = { .isInline = true };
+		MVKMTLBufferBinding viewRangeBufferBinding = { .isInline = true };
 
 		bool areBufferBindingsDirty = false;
 		bool areTextureBindingsDirty = false;
@@ -490,6 +499,7 @@ protected:
 		bool needsSwizzle = false;
 	};
 
+	VkPipelineBindPoint _bindPoint;
 	MVKDescriptorSet* _boundDescriptorSets[kMVKMaxDescriptorSetCount];
 	MVKBitArray _metalUsageDirtyDescriptors[kMVKMaxDescriptorSetCount];
 
@@ -547,6 +557,13 @@ public:
 								 bool needTessEvalDynanicOffsetBuffer,
 								 bool needFragmentDynanicOffsetBuffer);
 
+	/** Sets the current dynamic offset buffer state. */
+	void bindTextureOffsetBuffer(const MVKShaderImplicitRezBinding& binding,
+	                             bool needVertexTextureOffsetBuffer,
+	                             bool needTessCtlTextureOffsetBuffer,
+	                             bool needTessEvalTextureOffsetBuffer,
+	                             bool needFragmentTextureOffsetBuffer);
+
     /** Sets the current view range buffer state. */
     void bindViewRangeBuffer(const MVKShaderImplicitRezBinding& binding,
                              bool needVertexViewBuffer,
@@ -580,11 +597,13 @@ public:
 	void endMetalRenderPass() override;
 
 	void markDirty() override;
+	void markDirty(MVKShaderStage stage);
 
 #pragma mark Construction
-    
-    /** Constructs this instance for the specified command encoder. */
-    MVKGraphicsResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder) : MVKResourcesCommandEncoderState(cmdEncoder) {}
+
+	/** Constructs this instance for the specified command encoder. */
+	MVKGraphicsResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder)
+		: MVKResourcesCommandEncoderState(cmdEncoder, VK_PIPELINE_BIND_POINT_GRAPHICS) {}
 
 protected:
     void encodeImpl(uint32_t stage) override;
@@ -624,6 +643,9 @@ public:
 	/** Sets the current dynamic offset buffer state. */
 	void bindDynamicOffsetBuffer(const MVKShaderImplicitRezBinding& binding, bool needDynamicOffsetBuffer);
 
+	/** Sets the current texture offset buffer state. */
+	void bindTextureOffsetBuffer(const MVKShaderImplicitRezBinding& binding, bool needTextureOffsetBuffer);
+
 	void encodeResourceUsage(MVKShaderStage stage,
 							 id<MTLResource> mtlResource,
 							 MTLResourceUsage mtlUsage,
@@ -642,8 +664,9 @@ public:
 
 #pragma mark Construction
 
-    /** Constructs this instance for the specified command encoder. */
-    MVKComputeResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder) : MVKResourcesCommandEncoderState(cmdEncoder) {}
+	/** Constructs this instance for the specified command encoder. */
+	MVKComputeResourcesCommandEncoderState(MVKCommandEncoder* cmdEncoder)
+		: MVKResourcesCommandEncoderState(cmdEncoder, VK_PIPELINE_BIND_POINT_COMPUTE) {}
 
 protected:
     void encodeImpl(uint32_t) override;

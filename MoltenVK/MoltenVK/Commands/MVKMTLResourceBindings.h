@@ -33,14 +33,16 @@ typedef struct MVKMTLTextureBinding {
     union { id<MTLTexture> mtlTexture = nil; id<MTLTexture> mtlResource; }; // aliases
     uint32_t swizzle = 0;
 	uint16_t index = 0;
+	uint8_t offset = 0;
     bool isDirty = true;
 
     inline void markDirty() { isDirty = true; }
 
     inline void update(const MVKMTLTextureBinding &other) {
-        if (mtlTexture != other.mtlTexture || swizzle != other.swizzle) {
+        if (mtlTexture != other.mtlTexture || swizzle != other.swizzle || offset != other.offset) {
             mtlTexture = other.mtlTexture;
             swizzle = other.swizzle;
+            offset = other.offset;
             markDirty();
         }
     }
