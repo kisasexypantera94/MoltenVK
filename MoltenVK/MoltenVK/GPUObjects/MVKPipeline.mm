@@ -1197,7 +1197,7 @@ bool MVKGraphicsPipeline::addVertexShaderToPipeline(MTLRenderPipelineDescriptor*
 	shaderConfig.options.mslOptions.shader_output_buffer_index = _outputBufferIndex.stages[kMVKShaderStageVertex];
 	shaderConfig.options.mslOptions.buffer_size_buffer_index = _bufferSizeBufferIndex.stages[kMVKShaderStageVertex];
 	shaderConfig.options.mslOptions.dynamic_offsets_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageVertex];
-	shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageVertex];
+	// FIXME: shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageVertex];
 	shaderConfig.options.mslOptions.view_mask_buffer_index = _viewRangeBufferIndex.stages[kMVKShaderStageVertex];
 	shaderConfig.options.mslOptions.capture_output_to_buffer = false;
 	shaderConfig.options.mslOptions.disable_rasterization = !_isRasterizing;
@@ -1347,7 +1347,7 @@ bool MVKGraphicsPipeline::addVertexShaderToPipeline(MTLMeshRenderPipelineDescrip
     shaderConfig.options.mslOptions.shader_output_buffer_index = _outputBufferIndex.stages[kMVKShaderStageVertex];
     shaderConfig.options.mslOptions.buffer_size_buffer_index = _bufferSizeBufferIndex.stages[kMVKShaderStageVertex];
     shaderConfig.options.mslOptions.dynamic_offsets_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageVertex];
-    shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageVertex];
+	// FIXME: shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageVertex];
     shaderConfig.options.mslOptions.view_mask_buffer_index = _viewRangeBufferIndex.stages[kMVKShaderStageVertex];
     shaderConfig.options.mslOptions.capture_output_to_buffer = false;
     shaderConfig.options.mslOptions.disable_rasterization = !_isRasterizing;
@@ -1389,7 +1389,7 @@ bool MVKGraphicsPipeline::addGeometryShaderToPipeline(MTLMeshRenderPipelineDescr
     shaderConfig.options.mslOptions.shader_output_buffer_index = _outputBufferIndex.stages[kMVKShaderStageGeometry];
     shaderConfig.options.mslOptions.buffer_size_buffer_index = _bufferSizeBufferIndex.stages[kMVKShaderStageGeometry];
     shaderConfig.options.mslOptions.dynamic_offsets_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageGeometry];
-    shaderConfig.options.mslOptions.texture_offset_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageGeometry];
+	// FIXME: shaderConfig.options.mslOptions.texture_offset_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageGeometry];
     shaderConfig.options.mslOptions.view_mask_buffer_index = _viewRangeBufferIndex.stages[kMVKShaderStageGeometry];
     shaderConfig.options.mslOptions.capture_output_to_buffer = false;
     shaderConfig.options.mslOptions.disable_rasterization = !_isRasterizing;
@@ -1434,7 +1434,7 @@ bool MVKGraphicsPipeline::addVertexShaderToPipeline(MTLComputePipelineDescriptor
 	shaderConfig.options.mslOptions.shader_output_buffer_index = _outputBufferIndex.stages[kMVKShaderStageVertex];
 	shaderConfig.options.mslOptions.buffer_size_buffer_index = _bufferSizeBufferIndex.stages[kMVKShaderStageVertex];
 	shaderConfig.options.mslOptions.dynamic_offsets_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageVertex];
-	shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageVertex];
+	// FIXME: shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageVertex];
 	shaderConfig.options.mslOptions.capture_output_to_buffer = true;
 	shaderConfig.options.mslOptions.vertex_for_tessellation = true;
 	shaderConfig.options.mslOptions.disable_rasterization = true;
@@ -1510,7 +1510,7 @@ bool MVKGraphicsPipeline::addTessCtlShaderToPipeline(MTLComputePipelineDescripto
 	shaderConfig.options.mslOptions.shader_tess_factor_buffer_index = _tessCtlLevelBufferIndex;
 	shaderConfig.options.mslOptions.buffer_size_buffer_index = _bufferSizeBufferIndex.stages[kMVKShaderStageTessCtl];
 	shaderConfig.options.mslOptions.dynamic_offsets_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageTessCtl];
-	shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageTessCtl];
+	// FIXME: shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageTessCtl];
 	shaderConfig.options.mslOptions.capture_output_to_buffer = true;
 	shaderConfig.options.mslOptions.multi_patch_workgroup = true;
 	shaderConfig.options.mslOptions.fixed_subgroup_size = mvkIsAnyFlagEnabled(pTessCtlSS->flags, VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT_EXT) ? 0 : getMetalFeatures().maxSubgroupSize;
@@ -1578,7 +1578,7 @@ bool MVKGraphicsPipeline::addTessEvalShaderToPipeline(MTLRenderPipelineDescripto
 	shaderConfig.options.mslOptions.shader_tess_factor_buffer_index = getMetalBufferIndexForVertexAttributeBinding(kMVKTessEvalLevelBufferBinding);
 	shaderConfig.options.mslOptions.buffer_size_buffer_index = _bufferSizeBufferIndex.stages[kMVKShaderStageTessEval];
 	shaderConfig.options.mslOptions.dynamic_offsets_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageTessEval];
-	shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageTessEval];
+	// FIXME: shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageTessEval];
 	shaderConfig.options.mslOptions.capture_output_to_buffer = false;
 	shaderConfig.options.mslOptions.raw_buffer_tese_input = true;
 	shaderConfig.options.mslOptions.disable_rasterization = !_isRasterizing;
@@ -1631,15 +1631,15 @@ bool MVKGraphicsPipeline::addFragmentShaderToPipeline(T* plDesc,
 		shaderConfig.options.mslOptions.swizzle_buffer_index = _swizzleBufferIndex.stages[kMVKShaderStageFragment];
 		shaderConfig.options.mslOptions.buffer_size_buffer_index = _bufferSizeBufferIndex.stages[kMVKShaderStageFragment];
 		shaderConfig.options.mslOptions.dynamic_offsets_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageFragment];
-		shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageFragment];
+		// FIXME: shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageFragment];
 		shaderConfig.options.mslOptions.view_mask_buffer_index = _viewRangeBufferIndex.stages[kMVKShaderStageFragment];
 		shaderConfig.options.entryPointName = pFragmentSS->pName;
 		shaderConfig.options.mslOptions.capture_output_to_buffer = false;
 		shaderConfig.options.mslOptions.fixed_subgroup_size = mvkIsAnyFlagEnabled(pFragmentSS->flags, VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT_EXT) ? 0 : mtlFeats.maxSubgroupSize;
 		shaderConfig.options.mslOptions.check_discarded_frag_stores = true;
 		/* Enabling makes dEQP-VK.fragment_shader_interlock.basic.discard.image.pixel_ordered.1xaa.no_sample_shading.1024x1024 and similar tests fail. Requires investigation */
-		shaderConfig.options.mslOptions.force_fragment_with_side_effects_execution = false;
-		shaderConfig.options.mslOptions.input_attachment_is_ds_attachment = _inputAttachmentIsDSAttachment;
+		//FIXME: shaderConfig.options.mslOptions.force_fragment_with_side_effects_execution = false;
+		//FIXME: shaderConfig.options.mslOptions.input_attachment_is_ds_attachment = _inputAttachmentIsDSAttachment;
 		if (mtlFeats.needsSampleDrefLodArrayWorkaround) {
 			shaderConfig.options.mslOptions.sample_dref_lod_array_as_grad = true;
 		}
@@ -2044,14 +2044,14 @@ void MVKGraphicsPipeline::initShaderConversionConfig(SPIRVToMSLConversionConfigu
     shaderConfig.options.mslOptions.texel_buffer_texture_width = mtlFeats.maxTextureDimension;
     shaderConfig.options.mslOptions.r32ui_linear_texture_alignment = (uint32_t)_device->getVkFormatTexelBufferAlignment(VK_FORMAT_R32_UINT, this);
 	shaderConfig.options.mslOptions.texture_buffer_native = mtlFeats.textureBuffers;
-	shaderConfig.options.mslOptions.bitwise_not_causes_ice = mtlFeats.bitwiseNotCausesICE;
-	shaderConfig.options.mslOptions.add_texture_buffer_offsets = mtlFeats.emulatedTexelBufferAlignment;
+	//FIXME: shaderConfig.options.mslOptions.bitwise_not_causes_ice = mtlFeats.bitwiseNotCausesICE;
+	//FIXME: shaderConfig.options.mslOptions.add_texture_buffer_offsets = mtlFeats.emulatedTexelBufferAlignment;
 
 	bool useMetalArgBuff = isUsingMetalArgumentBuffers();
 	shaderConfig.options.mslOptions.argument_buffers = useMetalArgBuff;
 	shaderConfig.options.mslOptions.force_active_argument_buffer_resources = false;
 	shaderConfig.options.mslOptions.pad_argument_buffer_resources = useMetalArgBuff;
-	shaderConfig.options.mslOptions.agx_manual_cube_grad_fixup = mtlFeats.needsCubeGradWorkaround;
+	//FIXME: shaderConfig.options.mslOptions.agx_manual_cube_grad_fixup = mtlFeats.needsCubeGradWorkaround;
 
     MVKPipelineLayout* layout = (MVKPipelineLayout*)pCreateInfo->layout;
     layout->populateShaderConversionConfig(shaderConfig);
@@ -2473,8 +2473,8 @@ MVKMTLFunction MVKComputePipeline::getMTLFunction(const VkComputePipelineCreateI
 	shaderConfig.options.mslOptions.dispatch_base = _allowsDispatchBase;
 	shaderConfig.options.mslOptions.texture_1D_as_2D = getMVKConfig().texture1DAs2D;
     shaderConfig.options.mslOptions.fixed_subgroup_size = mvkIsAnyFlagEnabled(pSS->flags, VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT_EXT) ? 0 : mtlFeats.maxSubgroupSize;
-	shaderConfig.options.mslOptions.bitwise_not_causes_ice = mtlFeats.bitwiseNotCausesICE;
-	shaderConfig.options.mslOptions.add_texture_buffer_offsets = mtlFeats.emulatedTexelBufferAlignment;
+	//FIXME: shaderConfig.options.mslOptions.bitwise_not_causes_ice = mtlFeats.bitwiseNotCausesICE;
+	//FIXME: shaderConfig.options.mslOptions.add_texture_buffer_offsets = mtlFeats.emulatedTexelBufferAlignment;
 
 	bool useMetalArgBuff = isUsingMetalArgumentBuffers();
 	shaderConfig.options.mslOptions.argument_buffers = useMetalArgBuff;
@@ -2508,7 +2508,7 @@ MVKMTLFunction MVKComputePipeline::getMTLFunction(const VkComputePipelineCreateI
     shaderConfig.options.mslOptions.swizzle_buffer_index = _swizzleBufferIndex.stages[kMVKShaderStageCompute];
     shaderConfig.options.mslOptions.buffer_size_buffer_index = _bufferSizeBufferIndex.stages[kMVKShaderStageCompute];
 	shaderConfig.options.mslOptions.dynamic_offsets_buffer_index = _dynamicOffsetBufferIndex.stages[kMVKShaderStageCompute];
-	shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageCompute];
+	//FIXME: shaderConfig.options.mslOptions.texture_offset_buffer_index = _textureOffsetBufferIndex.stages[kMVKShaderStageCompute];
     shaderConfig.options.mslOptions.indirect_params_buffer_index = _indirectParamsIndex.stages[kMVKShaderStageCompute];
 	shaderConfig.options.mslOptions.replace_recursive_inputs = mvkOSVersionIsAtLeast(14.0, 17.0, 1.0);
 
@@ -2882,11 +2882,12 @@ namespace SPIRV_CROSS_NAMESPACE {
 				opt.force_sample_rate_shading,
 				opt.manual_helper_invocation_updates,
 				opt.check_discarded_frag_stores,
-				opt.force_fragment_with_side_effects_execution,
-				opt.input_attachment_is_ds_attachment,
+				//FIXME: opt.force_fragment_with_side_effects_execution,
+				//FIXME: opt.input_attachment_is_ds_attachment,
 				opt.sample_dref_lod_array_as_grad,
-				opt.replace_recursive_inputs,
-				opt.agx_manual_cube_grad_fixup);
+				opt.replace_recursive_inputs
+				//FIXME: opt.agx_manual_cube_grad_fixup
+				);
 	}
 
 	template<class Archive>
