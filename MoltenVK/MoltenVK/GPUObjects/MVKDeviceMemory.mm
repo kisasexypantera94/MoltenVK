@@ -355,6 +355,9 @@ MVKDeviceMemory::MVKDeviceMemory(MVKDevice* device,
 				if (_mtlBuffer)
 					_device->getLiveResources().remove(_mtlBuffer);
 				[_mtlBuffer release];							// guard against dups
+				// Imported MTLBuffers must be registered with the device residency set
+				// (see the VkImportMemoryMetalHandleInfoEXT path below for rationale).
+				_device->makeResident(pMTLBuffInfo->mtlBuffer);
 				_device->getLiveResources().add(pMTLBuffInfo->mtlBuffer);
 				_mtlBuffer = [pMTLBuffInfo->mtlBuffer retain];	// retained
 				_mtlStorageMode = _mtlBuffer.storageMode;
@@ -387,6 +390,12 @@ MVKDeviceMemory::MVKDeviceMemory(MVKDevice* device,
 					if (_mtlBuffer)
 						_device->getLiveResources().remove(_mtlBuffer);
 					[_mtlBuffer release];							// guard against dups
+					// Imported MTLBuffers must be registered with the device residency set
+					// (as ensureMTLBuffer() does for natively-created ones). Otherwise the
+					// buffer is not resident when referenced through a Metal argument buffer,
+					// so shader reads of e.g. uniform buffers return zero — while directly
+					// bound vertex buffers and blit sources, which use direct references, work.
+					_device->makeResident((id<MTLBuffer>)pImportInfo->handle);
 					_device->getLiveResources().add(((id<MTLBuffer>)pImportInfo->handle));
 					_mtlBuffer = [((id<MTLBuffer>)pImportInfo->handle) retain];	// retained
 					_mtlStorageMode = _mtlBuffer.storageMode;
